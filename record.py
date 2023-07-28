@@ -6,11 +6,18 @@ from pynput.mouse import Button
 import time
 from pynput.keyboard import Listener as KeyListener, Key
 import csv
+from collections import deque
 
 # Global variable to control recording and replaying
 control = {'record': False, 'replay': False, 'events': []}
 expected_value = []
 ctrl_pressed = False  # To keep track of whether 'ctrl' is currently being pressed
+# Buffer list to store imported files
+buffer_list = []
+
+# Final playlist (deque) to store the files to be played
+final_playlist = deque()
+
 
 # Record handler
 def on_action(x, y, button, pressed):
@@ -199,35 +206,119 @@ def update_expected_value_list():
         expected_value_text.insert(tk.END, value + "\n")
     expected_value_text.config(state=tk.DISABLED)
 
+def update_playlist_display():
+    playlist_listbox.delete(0, tk.END)
+    for file in final_playlist:
+        playlist_listbox.insert(tk.END, file)
 
+def update_buffer_display():
+    buffer_listbox.delete(0, tk.END)
+    for file in buffer_list:
+        buffer_listbox.insert(tk.END, file)
 
+def add_to_buffer():
+    events_file = filedialog.askopenfilename(defaultextension=".txt")  # Select a text file
+    if events_file:
+        buffer_list.append(events_file)
+        update_buffer_display()
+        log(f"Added {events_file} to the buffer.")
+
+def remove_from_buffer(index):
+    if 0 <= index < len(buffer_list):
+        removed_file = buffer_list.pop(index)
+        update_buffer_display()
+        log(f"Removed {removed_file} from the buffer.")
+
+def submit_to_playlist():
+    num_times = int(number_entry.get())
+    for _ in range(num_times):
+        final_playlist.extend(buffer_list)
+    update_playlist_display()
+    buffer_list.clear()
+    update_buffer_display()
+    log("Submitted buffer to the final playlist.")
+
+def remove_from_playlist(index):
+    if 0 <= index < len(final_playlist):
+        removed_file = final_playlist.pop(index)
+        update_playlist_display()
+        log(f"Removed {removed_file} from the final playlist.")
+
+def play_playlist():
+    if not final_playlist:
+        log("Final playlist is empty.")
+        return
+
+    log("Starting to play the final playlist...")
+    control['replay'] = True
+    while final_playlist and control['replay']:
+        events_file = final_playlist.popleft()
+        with open(events_file, 'r') as f:  # Open in read mode
+            reader = csv.reader(f)
+            events_data = [row for row in reader]
+        replay_events(events_data)
+    control['replay'] = False
+    log("Playback of the final playlist completed.")
+
+# Create the tkinter interface
 root = tk.Tk()
-root.geometry('400x600')  # Set the window size
+root.geometry('800x800')  # Set the window size
+
+# First column: start recording, stop recording, save events, and select and replay event file
 record_button = tk.Button(root, text="Start Recording", command=start_recording)
-record_button.pack()
+record_button.grid(row=0, column=0, padx=10, pady=10)
 stop_button = tk.Button(root, text="Stop Recording", command=stop_recording)
-stop_button.pack()
+stop_button.grid(row=1, column=0, padx=10, pady=10)
 save_button = tk.Button(root, text="Save Events", command=save_events)
-save_button.pack()
+save_button.grid(row=2, column=0, padx=10, pady=10)
 select_button = tk.Button(root, text="Select and Replay Events File", command=select_and_replay_events_file)
-select_button.pack()
+select_button.grid(row=3, column=0, padx=10, pady=10)
 
-# Entry for expected_value
+# Second column: add expected value entry and expected value display box
 expected_value_entry = tk.Entry(root)
-expected_value_entry.pack()
+expected_value_entry.grid(row=0, column=1, padx=10, pady=10)
 
-# Buttons to add and delete elements from the expected_value list
 add_button = tk.Button(root, text="Add Expected Value", command=add_expected_value)
-add_button.pack()
+add_button.grid(row=1, column=1, padx=10, pady=10)
+
 delete_button = tk.Button(root, text="Delete Last Expected Value", command=delete_last_expected_value)
-delete_button.pack()
+delete_button.grid(row=2, column=1, padx=10, pady=10)
 
-# Text area to display the expected_value list
 expected_value_text = tk.Text(root, state='disabled', height=10, width=30)
-expected_value_text.pack()
+expected_value_text.grid(row=4, column=1, padx=10, pady=10)
+
+# Third column: buffer display and number of times to submit to playlist
+buffer_listbox = tk.Listbox(root, selectmode=tk.SINGLE)
+buffer_listbox.grid(row=4, column=2, padx=10, pady=10, rowspan=4)
+
+add_to_buffer_button = tk.Button(root, text="Add File to Buffer", command=add_to_buffer)
+add_to_buffer_button.grid(row=0, column=2, padx=10, pady=10)
+
+remove_from_buffer_button = tk.Button(root, text="Remove File from Buffer", command=lambda: remove_from_buffer(buffer_listbox.curselection()[0]))
+remove_from_buffer_button.grid(row=1, column=2, padx=10, pady=10)
+
+number_entry_label = tk.Label(root, text="Number of Times to Play:")
+number_entry_label.grid(row=2, column=2, padx=10, pady=10)
+
+number_entry = tk.Entry(root)
+number_entry.grid(row=3, column=2, padx=10, pady=10)
+
+# Fourth column: final playlist and play playlist
+submit_to_playlist_button = tk.Button(root, text="Submit to Playlist", command=submit_to_playlist)
+submit_to_playlist_button.grid(row=0, column=3, padx=10, pady=10)
 
 
+playlist_listbox = tk.Listbox(root, selectmode=tk.SINGLE)
+playlist_listbox.grid(row=4, column=3, padx=10, pady=10, rowspan=4)
+
+remove_from_playlist_button = tk.Button(root, text="Remove File from Playlist", command=lambda: remove_from_playlist(playlist_listbox.curselection()[0]))
+remove_from_playlist_button.grid(row=1, column=3, padx=10, pady=10)
+
+play_playlist_button = tk.Button(root, text="Play Playlist", command=play_playlist)
+play_playlist_button.grid(row=2, column=3, padx=10, pady=10)
+
+# Log area at the bottom
 console = tk.Text(root, state='disabled')
-console.pack(expand=True, fill='both')
+console.grid(row=9, column=0, columnspan=4, padx=10, pady=10, sticky="we")
 
 root.mainloop()
