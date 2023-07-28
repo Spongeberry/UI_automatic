@@ -7,6 +7,7 @@ import time
 from pynput.keyboard import Listener as KeyListener, Key
 import csv
 from collections import deque
+import os
 
 # Global variable to control recording and replaying
 control = {'record': False, 'replay': False, 'events': []}
@@ -108,9 +109,14 @@ def replay_events(events_data):
                 keyboard_controller.release('c')
                 keyboard_controller.release(Key.ctrl)
                 time.sleep(0.1)
-                clipboard_data = root.clipboard_get()
+                try:
+                    clipboard_data = root.clipboard_get()
+                except:
+                    log("nothing in the clipboard")
                 log(f"clipboard data: {clipboard_data}")
+                print(f"clipboard data: {clipboard_data}")
                 log(f"expected value: {expected_value[0]}")
+                print(f"expected value: {expected_value[0]}")
                 if expected_value[0] == clipboard_data:
                     expected_value.pop(0)
                     root.clipboard_clear()  # Clear the clipboard for future comparison (expected_value[1])
@@ -149,7 +155,8 @@ def stop_recording():
     log("Recording stopped...")
 
 def save_events():
-    events_file = filedialog.asksaveasfilename(defaultextension=".txt")  # Save as text file
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    events_file = filedialog.asksaveasfilename(defaultextension=".txt", initialdir=current_directory)
     if events_file:
         with open(events_file, 'w', newline='') as f:  # Open in write mode with 'newline'
             writer = csv.writer(f)
@@ -157,7 +164,8 @@ def save_events():
         log(f"Events saved to {events_file}")
 
 def select_and_replay_events_file():
-    events_file = filedialog.askopenfilename(defaultextension=".txt")  # Select a text file
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    events_file = filedialog.askopenfilename(defaultextension=".txt", initialdir=current_directory)
     if events_file:
         control['replay'] = True
         with open(events_file, 'r') as f:  # Open in read mode
@@ -183,20 +191,21 @@ def log(message):
     console.see(tk.END)  # Auto-scroll
     console.config(state=tk.DISABLED)
 
+def load_config():
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    config_file_path = filedialog.askopenfilename(initialdir=current_directory, title="Select Config File", filetypes=[("Text files", "*.txt")])
+    if config_file_path:
+        expected_value.clear()
+        read_expected_values_from_config(config_file_path)
 
-# Function to add an element to the expected_value list
-def add_expected_value():
-    value = expected_value_entry.get()
-    if value.strip():
-        expected_value.append(value)
-        expected_value_entry.delete(0, tk.END)
-        update_expected_value_list()
-
-# Function to delete the last element from the expected_value list
-def delete_last_expected_value():
-    if expected_value:
-        expected_value.pop()
-        update_expected_value_list()
+def read_expected_values_from_config(config_file_path):
+    if os.path.exists(config_file_path):
+        with open(config_file_path, 'r') as f:
+            sections = f.read().split('@.@')  # Split the file content based on '@.@' separator and empty line
+            for section in sections:
+                # Remove leading/trailing whitespaces and append the section to expected_value list
+                expected_value.append(section.strip())
+            update_expected_value_list()
 
 # Function to update the expected_value list in the display area
 def update_expected_value_list():
@@ -217,7 +226,8 @@ def update_buffer_display():
         buffer_listbox.insert(tk.END, file)
 
 def add_to_buffer():
-    events_file = filedialog.askopenfilename(defaultextension=".txt")  # Select a text file
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    events_file = filedialog.askopenfilename(defaultextension=".txt", initialdir=current_directory)
     if events_file:
         buffer_list.append(events_file)
         update_buffer_display()
@@ -274,15 +284,8 @@ save_button.grid(row=2, column=0, padx=10, pady=10)
 select_button = tk.Button(root, text="Select and Replay Events File", command=select_and_replay_events_file)
 select_button.grid(row=3, column=0, padx=10, pady=10)
 
-# Second column: add expected value entry and expected value display box
-expected_value_entry = tk.Entry(root)
-expected_value_entry.grid(row=0, column=1, padx=10, pady=10)
-
-add_button = tk.Button(root, text="Add Expected Value", command=add_expected_value)
-add_button.grid(row=1, column=1, padx=10, pady=10)
-
-delete_button = tk.Button(root, text="Delete Last Expected Value", command=delete_last_expected_value)
-delete_button.grid(row=2, column=1, padx=10, pady=10)
+load_config_button = tk.Button(root, text="Load Config", command=load_config)
+load_config_button.grid(row=3, column=1, padx=10, pady=10)
 
 expected_value_text = tk.Text(root, state='disabled', height=10, width=30)
 expected_value_text.grid(row=4, column=1, padx=10, pady=10)
@@ -319,6 +322,6 @@ play_playlist_button.grid(row=2, column=3, padx=10, pady=10)
 
 # Log area at the bottom
 console = tk.Text(root, state='disabled')
-console.grid(row=9, column=0, columnspan=4, padx=10, pady=10, sticky="we")
+console.grid(row=8, column=0, columnspan=4, padx=10, pady=10, sticky="we")
 
 root.mainloop()
