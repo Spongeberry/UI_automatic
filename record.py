@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog
+import tkinter.messagebox as messagebox
 import threading
 from pynput import mouse, keyboard
 from pynput.mouse import Button
@@ -15,10 +16,11 @@ expected_value = []
 ctrl_pressed = False  # To keep track of whether 'ctrl' is currently being pressed
 # Buffer list to store imported files
 buffer_list = []
+split_character = "@.@"
+comparison_counter = 0
 
 # Final playlist (deque) to store the files to be played
 final_playlist = deque()
-
 
 # Record handler
 def on_action(x, y, button, pressed):
@@ -117,12 +119,19 @@ def replay_events(events_data):
                 print(f"clipboard data: {clipboard_data}")
                 log(f"expected value: {expected_value[0]}")
                 print(f"expected value: {expected_value[0]}")
+                with open("report.txt", "w") as report:
+                    global comparison_counter
+                    comparison_counter += 1
+                    report.write(f'第{comparison_counter}次对比:\n')
+                    report.write(f'actual value: {clipboard_data}\n')
+                    report.write(f'expected value: {expected_value[0]}\n\n')
+                    
                 if expected_value[0] == clipboard_data:
                     expected_value.pop(0)
                     root.clipboard_clear()  # Clear the clipboard for future comparison (expected_value[1])
                 else:
-                    print("Clipboard content does not match. Closing the application.")
-                    root.destroy()
+                    messagebox.showinfo("Replay Stopped", "Clipboard content does not match.\nReplaying has stopped.")
+                    control["replay"] = False
             elif event[1] == '\'\\x03\'' and control['replay'] and ctrl_pressed:
                 keyboard_controller.press(Key.ctrl)
                 keyboard_controller.press('a')
@@ -180,10 +189,10 @@ def select_and_replay_events_file():
 
 
 def record_events():
-    with mouse.Listener(on_move=on_move, on_click=on_action, on_scroll=on_scroll) as mouse_listener, \
-        keyboard.Listener(on_press=on_press, on_release=on_release) as keyboard_listener:
-            mouse_listener.join()
-            keyboard_listener.join()
+        with mouse.Listener(on_move=on_move, on_click=on_action, on_scroll=on_scroll) as mouse_listener, \
+            keyboard.Listener(on_press=on_press, on_release=on_release) as keyboard_listener:
+                mouse_listener.join()
+                keyboard_listener.join()
 
 def log(message):
     console.config(state=tk.NORMAL)
@@ -201,7 +210,7 @@ def load_config():
 def read_expected_values_from_config(config_file_path):
     if os.path.exists(config_file_path):
         with open(config_file_path, 'r') as f:
-            sections = f.read().split('@.@')  # Split the file content based on '@.@' separator and empty line
+            sections = f.read().split(split_character)  # Split the file content based on '@.@' separator and empty line
             for section in sections:
                 # Remove leading/trailing whitespaces and append the section to expected_value list
                 expected_value.append(section.strip())
@@ -240,7 +249,10 @@ def remove_from_buffer(index):
         log(f"Removed {removed_file} from the buffer.")
 
 def submit_to_playlist():
-    num_times = int(number_entry.get())
+    try:
+        num_times = int(number_entry.get())
+    except:
+        num_times = 1
     for _ in range(num_times):
         final_playlist.extend(buffer_list)
     update_playlist_display()
@@ -250,7 +262,8 @@ def submit_to_playlist():
 
 def remove_from_playlist(index):
     if 0 <= index < len(final_playlist):
-        removed_file = final_playlist.pop(index)
+        removed_file = final_playlist[index]
+        final_playlist.remove(final_playlist[index])
         update_playlist_display()
         log(f"Removed {removed_file} from the final playlist.")
 
