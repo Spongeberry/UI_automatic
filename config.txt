@@ -1,0 +1,14 @@
+[binding]
+value1=12.txt
+
+[times]
+value=2
+
+[value]
+expected value1=>>???<<<>>
+expected value2=KOSJDMFKDK
+expected value3=>>???<<<>>
+expected value4=KOSJDMFKDK
+
+[allowed difference]
+value=14%

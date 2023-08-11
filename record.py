@@ -98,7 +98,6 @@ def record_events():
 def clear_recordings():
     control['events'] = []
 
-
 def log(message):
     console.config(state=tk.NORMAL)
     console.insert(tk.END, message + "\n")
@@ -142,6 +141,12 @@ def read_expected_values_from_csv(csv_file):
     print("Allowed difference:", allowed_difference, "%")
     return binding_files, num_times, expected_values, allowed_difference
 
+def string_difference(str1, str2):
+    distance = Levenshtein.distance(str1, str2)
+    length = max(len(str1), len(str2))
+    if length == 0:
+        return 0
+    return (distance / length) * 100
 
 def string_difference_percentage(str1, str2, percentage):
     distance = Levenshtein.distance(str1, str2)
@@ -259,15 +264,18 @@ def replay_events(events_data, filename):
                 with open(filename, "a", newline='') as report:
                     actual_value = clipboard_data
                     comparison_time = time.time()
-                    row = [comparison_counter, expected_value[0], actual_value, comparison_time - program_start_time, str(allowed_difference) + "%"]
-                    write_to_specific_row(filename, comparison_counter, row)
+                    tz = pytz.timezone('Asia/Shanghai')
+                    current_time = datetime.now(tz)
+                    current_time = current_time.strftime("comparison time: %Y-%m-%d %H-%M-%S")
+                    row = [comparison_counter, "expected value:" + expected_value[0], "actual value:" + actual_value, "string difference:" + str(round(string_difference(expected_value[0], clipboard_data), 2)) + "%", current_time]
+                    write_to_specific_row(filename, comparison_counter, row )
                     comparison_counter += 1
                 if string_difference_percentage(expected_value[0], clipboard_data, allowed_difference):
                     expected_value.pop(0)
                     root.clipboard_clear()  # Clear the clipboard for future comparison (expected_value[1])
                     update_expected_value_list()
                 else:
-                    messagebox.showinfo("Replay Stopped", "Clipboard content does not match.\nOr maximum tolerance has exceeded\nReplaying has stopped.")
+                    messagebox.showinfo("Replay Stopped", "Maximum tolerance has exceeded\nReplaying has stopped.")
                     control["replay"] = False
                     return
             elif event[1] == '\'\\x01\'' and control['replay'] and ctrl_pressed:
@@ -434,7 +442,6 @@ playlist_listbox.grid(row=4, column=3, padx=10, pady=10, rowspan=4)
 
 remove_from_playlist_button = tk.Button(root, text="Remove File from Playlist", command=remove_selected_from_playlist)
 remove_from_playlist_button.grid(row=1, column=3, padx=10, pady=10)
-
 
 play_playlist_button = tk.Button(root, text="Play Playlist", command=play_playlist)
 play_playlist_button.grid(row=2, column=3, padx=10, pady=10)
